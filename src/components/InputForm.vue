@@ -10,18 +10,10 @@ const materialTypes = [
   { value: 'newsletter', label: '简报', icon: '📋' },
 ]
 
-const colorPalettes = [
-  { value: 'government', label: '政务蓝', colors: ['#1e40af', '#3b82f6', '#93c5fd'] },
-  { value: 'china-red', label: '中国红', colors: ['#dc2626', '#ef4444', '#fca5a5'] },
-  { value: 'ink-green', label: '墨绿', colors: ['#059669', '#10b981', '#6ee7b7'] },
-  { value: 'warm-orange', label: '暖橙', colors: ['#ea580c', '#f97316', '#fdba74'] },
-]
-
 const formState = ref({
   type: 'poster' as 'poster' | 'article' | 'newsletter',
   title: '',
   content: '',
-  color_theme: 'government' as 'government' | 'china-red' | 'ink-green' | 'warm-orange',
 })
 
 // 模拟图片上传区域 - 实际项目中需要结合 el-upload 或类似组件
@@ -39,10 +31,6 @@ const handleTitleInput = (e: Event) => {
 const handleContentInput = (e: Event) => {
   const target = e.target as HTMLTextAreaElement
   formState.value.content = target.value
-}
-
-const handleColorSelect = (value: string) => {
-  formState.value.color_theme = value as GenerateParams['color_theme']
 }
 
 // 处理图片上传
@@ -95,7 +83,6 @@ const handleGenerate = () => {
     type: formState.value.type,
     title: formState.value.title,
     content: formState.value.content,
-    color_theme: formState.value.color_theme,
     images: uploadedImages.value,
   })
 }
@@ -156,24 +143,6 @@ const isLoading = computed(() => store.isGenerating)
             :value="formState.content"
             @input="handleContentInput"
           ></textarea>
-        </div>
-      </div>
-
-      <!-- Color Palette Selection -->
-      <div class="form-section" style="animation-delay: 0.25s">
-        <label class="form-label">
-          <span class="label-text">配色方向</span>
-        </label>
-        <div class="color-options">
-          <button
-            v-for="palette in colorPalettes"
-            :key="palette.value"
-            :class="['color-card', { active: formState.color_theme === palette.value }]"
-            @click="handleColorSelect(palette.value)"
-          >
-            <div class="color-gradient" :style="{ background: `linear-gradient(135deg, ${palette.colors[0]}, ${palette.colors[1]}, ${palette.colors[2]})` }"></div>
-            <span class="color-label">{{ palette.label }}</span>
-          </button>
         </div>
       </div>
 
@@ -388,67 +357,6 @@ const isLoading = computed(() => store.isGenerating)
 .textarea-input:focus {
   border-color: #6366f1;
   background: rgba(15, 17, 23, 0.8);
-}
-
-/* Color Options */
-.color-options {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-}
-
-.color-card {
-  position: relative;
-  padding: 0;
-  background: rgba(15, 17, 23, 0.5);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  cursor: pointer;
-  overflow: hidden;
-  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.color-card:hover {
-  border-color: rgba(255, 255, 255, 0.12);
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-}
-
-.color-card.active {
-  border-color: transparent;
-  box-shadow: 0 0 0 2px #6366f1, 0 0 24px rgba(99, 102, 241, 0.3);
-  animation: selectPulse 0.4s ease-out;
-}
-
-@keyframes selectPulse {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.03); }
-  100% { transform: scale(1); }
-}
-
-.color-gradient {
-  height: 52px;
-  width: 100%;
-  transition: filter 0.3s ease;
-}
-
-.color-card:hover .color-gradient {
-  filter: brightness(1.1);
-}
-
-.color-label {
-  display: block;
-  padding: 10px;
-  font-size: 13px;
-  color: #9ca3af;
-  text-align: center;
-  transition: color 0.2s;
-  font-weight: 500;
-}
-
-.color-card:hover .color-label,
-.color-card.active .color-label {
-  color: #f3f4f6;
 }
 
 /* Upload Area */
