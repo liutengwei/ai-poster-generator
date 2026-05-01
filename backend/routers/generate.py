@@ -40,6 +40,7 @@ class LayoutGenerateRequest(BaseModel):
     content: str
     image_count: int
     image_sizes: list[ImageSizeItem]
+    polish: bool = False
 
 
 class WordExportRequest(BaseModel):
@@ -96,6 +97,27 @@ async def generate_layout(req: LayoutGenerateRequest):
     if req.type == 'brief' and req.image_count > 2:
         effective_image_count = 2
 
+    content_to_use = req.content
+    if req.polish:
+        type_labels = {"poster": "海报", "article": "公众号推文", "brief": "简报"}
+        polish_system = "你是一名专业的党政机关宣传文案编辑，擅长公文写作和新媒体内容创作。\n请对用户提供的文案进行润色，要求：\n1. 保持原文核心信息和事实不变\n2. 语言更流畅、表达更专业\n3. 根据素材类型调整风格：海报简洁有力、公众号推文生动易读、简报严谨正式\n4. 直接返回润色后的正文内容，不要任何解释和前缀"
+        polish_user = f"素材类型：{type_labels.get(req.type, '海报')}\n标题：{req.title}\n原始文案：{req.content}\n\n请润色以上文案。"
+        try:
+            polish_resp = translate_client.chat.completions.create(
+                model="MiniMax-M2.7",
+                messages=[
+                    {"role": "system", "content": polish_system},
+                    {"role": "user", "content": polish_user},
+                ],
+                stream=False,
+                max_tokens=16384,
+            )
+            polished = re.sub(r'<think>.*?</think>', '', polish_resp.choices[0].message.content, flags=re.DOTALL).strip()
+            if polished:
+                content_to_use = polished
+        except Exception:
+            pass
+
     system_prompt = """你是一名专业的党政宣传排版设计师，熟悉机关单位公文和宣传材料的排版规范。
 你的任务是根据提供的文案内容和图片信息，给出最合理的图文排版方案。
 
@@ -116,7 +138,7 @@ async def generate_layout(req: LayoutGenerateRequest):
     user_prompt = f"""素材类型：{req.type}
 标题：{req.title}
 正文内容：
-{req.content}
+{content_to_use}
 
 用户上传了 {effective_image_count} 张图片，图片比例信息：
 {chr(10).join(sizes_desc)}
@@ -153,10 +175,10 @@ async def generate_layout(req: LayoutGenerateRequest):
                 {"role": "user", "content": user_prompt},
             ],
             stream=False,
-            max_tokens=4096,
+            max_tokens=16384,
         )
 
-        content = response.choices[0].message.content.strip()
+        content = re.sub(r'<think>.*?</think>', '', response.choices[0].message.content, flags=re.DOTALL).strip()
 
         # 尝试提取JSON
         if "```json" in content:
@@ -198,6 +220,8 @@ async def generate_layout(req: LayoutGenerateRequest):
             if filtered.get('position') not in allowed_positions:
                 filtered['position'] = 'inline'
             result["layout"].append(filtered)
+        if req.polish:
+            result["polished_content"] = content_to_use
         return result
 
     except json.JSONDecodeError as e:
@@ -236,12 +260,10 @@ async def export_word(req: WordExportRequest):
             text_content = item.get('content', '')
             text_style = item.get('style', 'body')
 
-            if text_style == 'title' and text_content == req.title:
-                continue
-
             if text_style == 'title':
-                doc.add_heading(text_content, 1)
-            elif text_style == 'highlight':
+                continue  # 标题已在开头单独添加
+
+            if text_style == 'highlight':
                 para = doc.add_paragraph()
                 run = para.add_run(text_content)
                 run.bold = True
@@ -309,7 +331,7 @@ async def export_word(req: WordExportRequest):
 #             text_content = item.get('content', '')
 #             text_style = item.get('style', 'body')
 #
-#             if text_style == 'title' and text_content == req.title:
+#             if text_style == 'title' and text_content.strip() == req.title.strip():
 #                 continue  # 标题已在上方添加
 #
 #             if text_style == 'title':
@@ -378,12 +400,10 @@ async def export_pdf(req: PdfExportRequest):
             text_content = item.get('content', '')
             text_style = item.get('style', 'body')
 
-            if text_style == 'title' and text_content == req.title:
-                continue
-
             if text_style == 'title':
-                story.append(Paragraph(text_content, styles['Heading2']))
-            elif text_style == 'highlight':
+                continue  # 标题已在开头单独添加
+
+            if text_style == 'highlight':
                 para_style = ParagraphStyle('Highlight', parent=body_style)
                 run = para_style
                 story.append(Paragraph(text_content, para_style))

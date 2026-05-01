@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
+import axios from 'axios'
 import { useGenerateStore, GenerateParams } from '@/stores/generate'
 
 const store = useGenerateStore()
@@ -18,6 +19,8 @@ const formState = ref({
 
 // 模拟图片上传区域 - 实际项目中需要结合 el-upload 或类似组件
 const uploadedImages = ref<string[]>([])
+const shouldPolish = ref(false)
+const isPolishing = ref(false)
 
 const handleTypeSelect = (value: string) => {
   formState.value.type = value as GenerateParams['type']
@@ -31,6 +34,30 @@ const handleTitleInput = (e: Event) => {
 const handleContentInput = (e: Event) => {
   const target = e.target as HTMLTextAreaElement
   formState.value.content = target.value
+}
+
+const polishContent = async () => {
+  if (!formState.value.content.trim()) return
+  isPolishing.value = true
+  try {
+    const api = axios.create({ baseURL: '/api', timeout: 60000 })
+    const typeLabels: Record<string, string> = { poster: '海报', article: '公众号推文', newsletter: '简报' }
+    const response = await api.post('/generate/layout', {
+      type: formState.value.type,
+      title: formState.value.title,
+      content: formState.value.content,
+      image_count: 0,
+      image_sizes: [],
+      polish: true,
+    })
+    if (response.data.polished_content) {
+      formState.value.content = response.data.polished_content
+    }
+  } catch (e) {
+    console.error('Polish failed:', e)
+  } finally {
+    isPolishing.value = false
+  }
 }
 
 // 处理图片上传
@@ -64,7 +91,7 @@ const handleFileChange = (e: Event) => {
   target.value = ''
 }
 
-const handleGenerate = () => {
+const handleGenerate = async () => {
   // 校验
   if (!formState.value.title.trim()) {
     alert('请输入标题')
@@ -77,6 +104,10 @@ const handleGenerate = () => {
   if (uploadedImages.value.length === 0) {
     alert('请至少上传1张图片')
     return
+  }
+
+  if (shouldPolish.value) {
+    await polishContent()
   }
 
   store.startLayoutAnalysis({
@@ -143,6 +174,13 @@ const isLoading = computed(() => store.isGenerating)
             :value="formState.content"
             @input="handleContentInput"
           ></textarea>
+        </div>
+        <div class="polish-option">
+          <label class="checkbox-label">
+            <input type="checkbox" v-model="shouldPolish" class="checkbox-input" />
+            <span class="checkbox-text">使用 AI 润色文案</span>
+          </label>
+          <span v-if="isPolishing" class="polish-loading">润色中...</span>
         </div>
       </div>
 
@@ -357,6 +395,45 @@ const isLoading = computed(() => store.isGenerating)
 .textarea-input:focus {
   border-color: #6366f1;
   background: rgba(15, 17, 23, 0.8);
+}
+
+/* Polish Option */
+.polish-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox-input {
+  width: 16px;
+  height: 16px;
+  accent-color: #6366f1;
+  cursor: pointer;
+}
+
+.checkbox-text {
+  font-size: 13px;
+  color: #9ca3af;
+}
+
+.polish-loading {
+  font-size: 12px;
+  color: #6366f1;
+  animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
 }
 
 /* Upload Area */
