@@ -232,7 +232,31 @@ async def generate_layout(req: LayoutGenerateRequest):
 @router.post("/export/word")
 async def export_word(req: WordExportRequest):
     doc = Document()
-    doc.add_heading(req.title, 0)
+
+    # 页边距：上3.3cm 下2.5cm 左右2.8cm
+    cm = 1 / 2.54
+    section = doc.sections[0]
+    section.top_margin = Inches(3.3 * cm)
+    section.bottom_margin = Inches(2.5 * cm)
+    section.left_margin = Inches(2.8 * cm)
+    section.right_margin = Inches(2.8 * cm)
+
+    # 公文字体样式
+    title_font = "方正小标宋简体"
+    body_font = "仿宋_GB2312"
+
+    # 添加标题
+    title_para = doc.add_paragraph()
+    title_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    title_run = title_para.add_run(req.title)
+    title_run.bold = True
+    title_run.font.size = Pt(22)  # 二号 = 22pt
+    title_run.font.name = title_font
+    # 设置东亚字体
+    from docx.oxml.ns import qn
+    title_run._element.rPr.rFonts.set(qn('w:eastAsia'), title_font)
+    # 段后间距
+    title_para.paragraph_format.space_after = Pt(28)
 
     image_list = req.images if req.images else []
     decoded_images = []
@@ -246,12 +270,8 @@ async def export_word(req: WordExportRequest):
                     decoded_images.append(base64.b64decode(img))
             else:
                 decoded_images.append(base64.b64decode(img))
-            print(f"[OK] Image {i} decoded, size: {len(decoded_images[-1])} bytes")
-        except Exception as e:
-            print(f"[FAIL] Image {i} decode failed: {e}")
-            decoded_images.append(None)  # 占位，防止 index 错位
-
-    print(f"Total decoded: {len(decoded_images)} images, layout items: {len(req.layout)}")
+        except Exception:
+            decoded_images.append(None)
 
     for item in req.layout:
         item_type = item.get('type', '')
@@ -261,39 +281,35 @@ async def export_word(req: WordExportRequest):
             text_style = item.get('style', 'body')
 
             if text_style == 'title':
-                continue  # 标题已在开头单独添加
+                continue
 
-            if text_style == 'highlight':
-                para = doc.add_paragraph()
-                run = para.add_run(text_content)
-                run.bold = True
-            else:
-                doc.add_paragraph(text_content)
+            para = doc.add_paragraph()
+            run = para.add_run(text_content)
+            run.font.name = body_font
+            run._element.rPr.rFonts.set(qn('w:eastAsia'), body_font)
+            run.font.size = Pt(16)  # 三号 = 16pt
+            para.paragraph_format.line_spacing = Pt(28)
 
         elif item_type == 'image':
             image_index = item.get('image_index', 0)
             caption = item.get('caption', '')
 
-            print(f"[IMG] Processing image: index={image_index}, available={len(decoded_images)}")
-
             if image_index < len(decoded_images) and decoded_images[image_index] is not None:
                 try:
                     img_stream = BytesIO(decoded_images[image_index])
-                    img_stream.seek(0)  # ✅ 关键：确保从头读取
+                    img_stream.seek(0)
                     doc.add_picture(img_stream, width=Inches(6))
 
                     if caption:
-                        from docx.enum.text import WD_ALIGN_PARAGRAPH  # ✅ 用正确的对齐常量
                         para = doc.add_paragraph(caption)
                         para.alignment = WD_ALIGN_PARAGRAPH.CENTER
                         for run in para.runs:
-                            run.font.size = Pt(10)
+                            run.font.size = Pt(10.5)
                             run.font.italic = True
-                    print(f"[OK] Image {image_index} inserted")
-                except Exception as e:
-                    print(f"[FAIL] Image {image_index} insert failed: {e}")
-            else:
-                print(f"[SKIP] Image {image_index} not available (index={image_index}, available={len(decoded_images)})")
+                            run.font.name = body_font
+                            run._element.rPr.rFonts.set(qn('w:eastAsia'), body_font)
+                except Exception:
+                    pass
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as f:
         doc.save(f.name)
