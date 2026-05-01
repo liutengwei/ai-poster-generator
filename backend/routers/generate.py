@@ -20,7 +20,7 @@ import json
 router = APIRouter()
 
 # 初始化 MiniMax 客户端
-MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY") or "sk-cp-KPyykerF87_cVMjidfGGJZjUV6trMPHCvC0Dz54vs2tz8BzdlIttVfwQNMnThnlnu4T_Iyq8k9jTCOaFM20Da62qeuCQhnwN4cwQn3-RYo2B__Wv60_e8zY"
+MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY") or "sk-cp-NG-3c1TF-hwnbOrKX0ffrOA992WKCPb9JITIb8EnPtvkTfIjGNHytEFkLVvCLJJYVQyo_FCKHkZCFLMF40hZwrxbwpv65kr8qD1irS0nqyhGS-QfgxrcTeY"
 translate_client = OpenAI(
     api_key=MINIMAX_API_KEY,
     base_url="https://api.minimax.chat/v1",
