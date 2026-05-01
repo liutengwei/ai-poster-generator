@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ title }}</title>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --primary-color: #1e3a5f;
+      --primary-light: #2d5a87;
+      --accent-gold: #c9a227;
+      --accent-gold-light: #e8c547;
+      --text-white: #ffffff;
+      --text-light: #e8e8e8;
+      --text-muted: #b8c5d6;
+    }
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Noto Serif SC', 'SimSun', serif;
+      background: #f5f5f5;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+
+    .poster {
+      width: 540px;
+      min-height: 800px;
+      background: linear-gradient(180deg, var(--primary-color) 0%, var(--primary-light) 50%, var(--primary-color) 100%);
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .poster::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 6px;
+      background: linear-gradient(90deg, var(--accent-gold) 0%, var(--accent-gold-light) 50%, var(--accent-gold) 100%);
+    }
+
+    .poster::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 6px;
+      background: linear-gradient(90deg, var(--accent-gold) 0%, var(--accent-gold-light) 50%, var(--accent-gold) 100%);
+    }
+
+    .header {
+      padding: 30px 40px 20px;
+      text-align: center;
+      border-bottom: 1px solid rgba(201, 162, 39, 0.3);
+    }
+
+    .unit-name {
+      font-size: 14px;
+      color: var(--accent-gold);
+      letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+
+    /* 动态渲染区域 */
+    .layout-body {
+      padding: 20px 40px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    /* 文字块 */
+    .layout-body h1 { font-size: 24px; color: #fff; text-align: center; }
+    .layout-body h2 { font-size: 18px; color: #e8c547; }
+    .layout-body p  { font-size: 14px; color: #e8e8e8; line-height: 1.9; }
+
+    /* 图片块 - 严格块级，绝不叠加 */
+    .image-block {
+      display: block;
+      width: 100%;
+      position: static;
+    }
+    .image-block img {
+      display: block;
+      width: 100%;
+      height: auto;
+      object-fit: contain;
+      position: static;
+    }
+
+    /* 尺寸变体 */
+    .size-full  { width: 100%; }
+    .size-half  { width: 50%; margin: 0 auto; }
+    .size-third { width: 33%; margin: 0 auto; }
+
+    /* 位置变体 */
+    .position-hero    { width: 100%; }
+    .position-inline  { width: 80%; margin: 0 auto; }
+    .position-sidebar { float: right; width: 40%; margin: 0 0 12px 16px; }
+
+    .caption {
+      font-size: 12px;
+      color: #b8c5d6;
+      text-align: center;
+      margin-top: 6px;
+    }
+
+    /* 底部区域 */
+    .footer {
+      padding: 20px 40px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-end;
+      border-top: 1px solid rgba(201, 162, 39, 0.3);
+      margin-top: auto;
+    }
+
+    .footer-info {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .footer-item {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .footer-item span {
+      color: var(--accent-gold);
+    }
+
+    .seal {
+      width: 70px;
+      height: 70px;
+      border: 2px solid var(--accent-gold);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      color: var(--accent-gold);
+      font-size: 10px;
+      text-align: center;
+      line-height: 1.3;
+      opacity: 0.7;
+    }
+
+    .corner-decoration {
+      position: absolute;
+      width: 60px;
+      height: 60px;
+      opacity: 0.15;
+    }
+
+    .corner-decoration.top-left {
+      top: 15px;
+      left: 15px;
+      border-top: 2px solid var(--accent-gold);
+      border-left: 2px solid var(--accent-gold);
+    }
+
+    .corner-decoration.top-right {
+      top: 15px;
+      right: 15px;
+      border-top: 2px solid var(--accent-gold);
+      border-right: 2px solid var(--accent-gold);
+    }
+
+    .corner-decoration.bottom-left {
+      bottom: 15px;
+      left: 15px;
+      border-bottom: 2px solid var(--accent-gold);
+      border-left: 2px solid var(--accent-gold);
+    }
+
+    .corner-decoration.bottom-right {
+      bottom: 15px;
+      right: 15px;
+      border-bottom: 2px solid var(--accent-gold);
+      border-right: 2px solid var(--accent-gold);
+    }
+  </style>
+</head>
+<body>
+  <div class="poster">
+    <div class="corner-decoration top-left"></div>
+    <div class="corner-decoration top-right"></div>
+    <div class="corner-decoration bottom-left"></div>
+    <div class="corner-decoration bottom-right"></div>
+
+    <div class="header">
+      <div class="unit-name">{{ unit_name }}</div>
+    </div>
+
+    <div id="layout-body" class="layout-body"></div>
+
+    <div class="footer">
+      <div class="footer-info">
+        <div class="footer-item">主办单位：<span>{{ unit_name }}</span></div>
+        <div class="footer-item">日期：<span>{{ date }}</span></div>
+      </div>
+      <div class="seal">党建工作<br>示范单位</div>
+    </div>
+  </div>
+
+  <script>
+    const layout = {{ layout_json | safe }};
+    const images = {{ images_json | safe }};
+
+    const container = document.getElementById('layout-body');
+
+    layout.forEach(item => {
+      if (item.type === 'text') {
+        const el = document.createElement(
+          item.style === 'title' ? 'h1' :
+          item.style === 'highlight' ? 'h2' : 'p'
+        );
+        if (item.style === 'title') el.className = 'title-text';
+        el.textContent = item.content;
+        container.appendChild(el);
+
+      } else if (item.type === 'image') {
+        const idx = item.image_index;
+        if (idx < images.length) {
+          const wrapper = document.createElement('div');
+          const pos = item.position || 'inline';
+          const size = item.size || 'full';
+          wrapper.className = `image-block position-${pos} size-${size}`;
+
+          const img = document.createElement('img');
+          const src = images[idx];
+          img.src = src.startsWith('data:') ? src : 'data:image/jpeg;base64,' + src;
+          wrapper.appendChild(img);
+
+          if (item.caption) {
+            const cap = document.createElement('p');
+            cap.className = 'caption';
+            cap.textContent = item.caption;
+            wrapper.appendChild(cap);
+          }
+          container.appendChild(wrapper);
+        }
+      }
+    });
+  </script>
+</body>
+</html>
