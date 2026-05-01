@@ -16,6 +16,8 @@ import io
 from datetime import datetime
 from openai import OpenAI
 import json
+from docx.shared import Inches, Pt
+from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 router = APIRouter()
 
@@ -203,17 +205,14 @@ async def generate_layout(req: LayoutGenerateRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"排版分析失败: {str(e)}")
 
-
 @router.post("/export/word")
 async def export_word(req: WordExportRequest):
-    """导出 Word 文档 - 按layout顺序插入图片和文字"""
     doc = Document()
     doc.add_heading(req.title, 0)
 
-    # base64图片索引，处理data URL格式
     image_list = req.images if req.images else []
     decoded_images = []
-    for img in image_list:
+    for i, img in enumerate(image_list):
         try:
             if img.startswith('data:image'):
                 match = re.search(r'base64,([A-Za-z0-9+/=]+)', img)
@@ -223,8 +222,12 @@ async def export_word(req: WordExportRequest):
                     decoded_images.append(base64.b64decode(img))
             else:
                 decoded_images.append(base64.b64decode(img))
+            print(f"[OK] Image {i} decoded, size: {len(decoded_images[-1])} bytes")
         except Exception as e:
-            print(f"Failed to decode image: {e}")
+            print(f"[FAIL] Image {i} decode failed: {e}")
+            decoded_images.append(None)  # 占位，防止 index 错位
+
+    print(f"Total decoded: {len(decoded_images)} images, layout items: {len(req.layout)}")
 
     for item in req.layout:
         item_type = item.get('type', '')
@@ -234,7 +237,7 @@ async def export_word(req: WordExportRequest):
             text_style = item.get('style', 'body')
 
             if text_style == 'title' and text_content == req.title:
-                continue  # 标题已在上方添加
+                continue
 
             if text_style == 'title':
                 doc.add_heading(text_content, 1)
@@ -249,22 +252,95 @@ async def export_word(req: WordExportRequest):
             image_index = item.get('image_index', 0)
             caption = item.get('caption', '')
 
-            if image_index < len(decoded_images):
+            print(f"[IMG] Processing image: index={image_index}, available={len(decoded_images)}")
+
+            if image_index < len(decoded_images) and decoded_images[image_index] is not None:
                 try:
-                    doc.add_picture(BytesIO(decoded_images[image_index]), width=6 * inch)
+                    img_stream = BytesIO(decoded_images[image_index])
+                    img_stream.seek(0)  # ✅ 关键：确保从头读取
+                    doc.add_picture(img_stream, width=Inches(6))
 
                     if caption:
+                        from docx.enum.text import WD_ALIGN_PARAGRAPH  # ✅ 用正确的对齐常量
                         para = doc.add_paragraph(caption)
-                        para.alignment = TA_CENTER
+                        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
                         for run in para.runs:
-                            run.font.size = 10
+                            run.font.size = Pt(10)
                             run.font.italic = True
+                    print(f"[OK] Image {image_index} inserted")
                 except Exception as e:
-                    print(f"Failed to add image {image_index}: {e}")
+                    print(f"[FAIL] Image {image_index} insert failed: {e}")
+            else:
+                print(f"[SKIP] Image {image_index} not available (index={image_index}, available={len(decoded_images)})")
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as f:
         doc.save(f.name)
-        return FileResponse(f.name, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", filename=f"{req.title}.docx")
+        return FileResponse(
+            f.name,
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            filename=f"{req.title}.docx"
+        )
+# @router.post("/export/word")
+# async def export_word(req: WordExportRequest):
+#     """导出 Word 文档 - 按layout顺序插入图片和文字"""
+#     doc = Document()
+#     doc.add_heading(req.title, 0)
+#
+#     # base64图片索引，处理data URL格式
+#     image_list = req.images if req.images else []
+#     decoded_images = []
+#     for img in image_list:
+#         try:
+#             if img.startswith('data:image'):
+#                 match = re.search(r'base64,([A-Za-z0-9+/=]+)', img)
+#                 if match:
+#                     decoded_images.append(base64.b64decode(match.group(1)))
+#                 else:
+#                     decoded_images.append(base64.b64decode(img))
+#             else:
+#                 decoded_images.append(base64.b64decode(img))
+#         except Exception as e:
+#             print(f"Failed to decode image: {e}")
+#
+#     for item in req.layout:
+#         item_type = item.get('type', '')
+#
+#         if item_type == 'text':
+#             text_content = item.get('content', '')
+#             text_style = item.get('style', 'body')
+#
+#             if text_style == 'title' and text_content == req.title:
+#                 continue  # 标题已在上方添加
+#
+#             if text_style == 'title':
+#                 doc.add_heading(text_content, 1)
+#             elif text_style == 'highlight':
+#                 para = doc.add_paragraph()
+#                 run = para.add_run(text_content)
+#                 run.bold = True
+#             else:
+#                 doc.add_paragraph(text_content)
+#
+#         elif item_type == 'image':
+#             image_index = item.get('image_index', 0)
+#             caption = item.get('caption', '')
+#
+#             if image_index < len(decoded_images):
+#                 try:
+#                     doc.add_picture(BytesIO(decoded_images[image_index]), width=6 * inch)
+#
+#                     if caption:
+#                         para = doc.add_paragraph(caption)
+#                         para.alignment = TA_CENTER
+#                         for run in para.runs:
+#                             run.font.size = 10
+#                             run.font.italic = True
+#                 except Exception as e:
+#                     print(f"Failed to add image {image_index}: {e}")
+#
+#     with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as f:
+#         doc.save(f.name)
+#         return FileResponse(f.name, media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document", filename=f"{req.title}.docx")
 
 
 @router.post("/export/pdf")
