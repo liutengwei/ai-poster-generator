@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from routers import generate
+from history.router import router as history_router
 import os
 from dotenv import load_dotenv
 
@@ -22,6 +23,7 @@ app.add_middleware(
 )
 
 app.include_router(generate.router, prefix="/api", tags=["生成"])
+app.include_router(history_router, prefix="/api", tags=["历史记录"])
 
 
 @app.get("/")

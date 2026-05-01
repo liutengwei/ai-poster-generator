@@ -1,15 +1,16 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import { useGenerateStore } from '@/stores/generate'
 
 interface HistoryItem {
   id: string
-  type: 'poster' | 'article' | 'newsletter'
-  topic: string
+  type: 'poster' | 'article' | 'brief'
+  title: string
   content: string
-  imageUrl?: string
-  style: string
+  images: string[]
+  layout: any[]
+  reasoning: string
   color_theme: string
   createdAt: string
 }
@@ -18,64 +19,52 @@ const router = useRouter()
 const store = useGenerateStore()
 
 const historyList = ref<HistoryItem[]>([])
+const loading = ref(false)
 
-const MAX_HISTORY = 10
-
-const loadHistory = () => {
+const loadHistory = async () => {
+  loading.value = true
   try {
-    const stored = localStorage.getItem('generate_history')
-    if (stored) {
-      historyList.value = JSON.parse(stored)
-    }
+    const res = await fetch('/api/history')
+    const data = await res.json()
+    historyList.value = data.items || []
   } catch (e) {
     console.error('Failed to load history:', e)
+  } finally {
+    loading.value = false
   }
 }
 
-const saveHistory = (item: HistoryItem) => {
+const deleteHistory = async (id: string) => {
   try {
-    const list = [item, ...historyList.value.filter(h => h.id !== item.id)].slice(0, MAX_HISTORY)
-    historyList.value = list
-    localStorage.setItem('generate_history', JSON.stringify(list))
+    await fetch(`/api/history/${id}`, { method: 'DELETE' })
+    historyList.value = historyList.value.filter(h => h.id !== id)
   } catch (e) {
-    console.error('Failed to save history:', e)
+    console.error('Failed to delete:', e)
   }
 }
 
-const deleteHistory = (id: string) => {
-  historyList.value = historyList.value.filter(h => h.id !== id)
-  localStorage.setItem('generate_history', JSON.stringify(historyList.value))
-}
-
-const clearAllHistory = () => {
+const clearAllHistory = async () => {
+  for (const item of historyList.value) {
+    await fetch(`/api/history/${item.id}`, { method: 'DELETE' })
+  }
   historyList.value = []
-  localStorage.removeItem('generate_history')
 }
 
 const loadToEditor = (item: HistoryItem) => {
-  store.loadFromHistory({
-    id: item.id,
-    type: item.type,
-    topic: item.topic,
-    content: item.content,
-    imageUrl: item.imageUrl,
-    style: item.style,
-    color_theme: item.color_theme,
-    createdAt: item.createdAt,
-  })
+  store.loadFromHistory(item)
   router.push('/')
 }
 
 const typeLabels: Record<string, string> = {
   poster: '海报',
   article: '公众号推文',
-  newsletter: '简报',
+  brief: '简报',
 }
 
 const typeIcons: Record<string, string> = {
   poster: '🖼',
   article: '📝',
-  newsletter: '📋',
+  brief: '📋',
 }
 
 const formatDate = (dateStr: string) => {
@@ -91,8 +80,6 @@ const formatDate = (dateStr: string) => {
 onMounted(() => {
   loadHistory()
 })
-
-defineExpose({ saveHistory })
 </script>
 
 <template>
@@ -126,8 +113,14 @@ defineExpose({ saveHistory })
         </button>
       </div>
 
+      <!-- Loading -->
+      <div v-if="loading" class="loading-state animate-fade-in-up stagger-4">
+        <div class="spinner"></div>
+        <p>加载中...</p>
+      </div>
+
       <!-- Empty State -->
-      <div v-if="historyList.length === 0" class="empty-state animate-fade-in-up stagger-4">
+      <div v-else-if="historyList.length === 0" class="empty-state animate-fade-in-up stagger-4">
         <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1">
           <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -151,8 +144,8 @@ defineExpose({ saveHistory })
         >
           <div class="card-header">
             <span class="card-type">
-              <span class="type-icon">{{ typeIcons[item.type] }}</span>
-              {{ typeLabels[item.type] }}
+              <span class="type-icon">{{ typeIcons[item.type] || '📄' }}</span>
+              {{ typeLabels[item.type] || item.type }}
             </span>
             <button class="delete-btn" @click.stop="deleteHistory(item.id)">
               <svg viewBox="0 0 20 20" fill="currentColor">
@@ -162,16 +155,16 @@ defineExpose({ saveHistory })
           </div>
 
           <div class="card-preview" @click="loadToEditor(item)">
-            <div v-if="item.imageUrl" class="preview-image">
-              <img :src="item.imageUrl" :alt="item.topic" />
+            <div v-if="item.images && item.images.length > 0" class="preview-image">
+              <img :src="item.images[0]" :alt="item.title" />
             </div>
             <div v-else class="preview-placeholder">
-              <span>{{ typeIcons[item.type] }}</span>
+              <span>{{ typeIcons[item.type] || '📄' }}</span>
             </div>
           </div>
 
           <div class="card-content" @click="loadToEditor(item)">
-            <h3 class="card-title">{{ item.topic }}</h3>
+            <h3 class="card-title">{{ item.title }}</h3>
             <p class="card-excerpt">{{ item.content?.slice(0, 60) }}{{ item.content?.length > 60 ? '...' : '' }}</p>
           </div>
 
@@ -319,6 +312,28 @@ defineExpose({ saveHistory })
 .clear-btn svg {
   width: 16px;
   height: 16px;
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 20px;
+  color: #9ca3af;
+}
+
+.spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid rgba(99, 102, 241, 0.2);
+  border-top-color: #6366f1;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Empty State */

@@ -3,7 +3,7 @@ import { ref } from 'vue'
 import axios from 'axios'
 
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: '/api',
   timeout: 60000,
 })
 
@@ -27,7 +27,7 @@ export interface GenerateParams {
   title: string
   content: string
   color_theme: 'government' | 'china-red' | 'ink-green' | 'warm-orange'
-  images: string[]  // base64 encoded images
+  images: string[]
 }
 
 export interface HistoryItem {
@@ -41,8 +41,6 @@ export interface HistoryItem {
   color_theme: string
   createdAt: string
 }
-
-const MAX_HISTORY = 10
 
 export const useGenerateStore = defineStore('generate', () => {
   const isGenerating = ref(false)
@@ -60,29 +58,6 @@ export const useGenerateStore = defineStore('generate', () => {
   const reasoning = ref('')
   const isAllDone = ref(false)
 
-  const saveToHistory = () => {
-    try {
-      const item: HistoryItem = {
-        id: Date.now().toString(),
-        type: currentParams.value.type as 'poster' | 'article' | 'brief',
-        title: currentParams.value.title,
-        content: currentParams.value.content,
-        images: [...currentParams.value.images],
-        layout: [...layout.value],
-        reasoning: reasoning.value,
-        color_theme: currentParams.value.color_theme,
-        createdAt: new Date().toISOString(),
-      }
-
-      const stored = localStorage.getItem('generate_history')
-      const list: HistoryItem[] = stored ? JSON.parse(stored) : []
-      const newList = [item, ...list.filter(h => h.id !== item.id)].slice(0, MAX_HISTORY)
-      localStorage.setItem('generate_history', JSON.stringify(newList))
-    } catch (e) {
-      console.error('Failed to save history:', e)
-    }
-  }
-
   const startLayoutAnalysis = async (params: GenerateParams) => {
     isGenerating.value = true
     error.value = null
@@ -91,7 +66,6 @@ export const useGenerateStore = defineStore('generate', () => {
     isAllDone.value = false
     currentParams.value = { ...params }
 
-    // 计算图片尺寸比例
     const imageSizes: ImageSize[] = params.images.map((_, idx) => {
       return {
         index: idx,
@@ -111,7 +85,21 @@ export const useGenerateStore = defineStore('generate', () => {
       layout.value = response.data.layout || []
       reasoning.value = response.data.reasoning || ''
       isAllDone.value = true
-      saveToHistory()
+
+      // Save to backend history
+      try {
+        await api.post('/history', {
+          type: params.type,
+          title: params.title,
+          content: params.content,
+          images: params.images,
+          layout: layout.value,
+          reasoning: reasoning.value,
+          color_theme: params.color_theme,
+        })
+      } catch (e) {
+        console.error('Failed to save history:', e)
+      }
     } catch (e: any) {
       if (e.response?.data?.detail) {
         error.value = e.response.data.detail
@@ -141,7 +129,7 @@ export const useGenerateStore = defineStore('generate', () => {
   const loadFromHistory = (item: HistoryItem) => {
     reset()
     currentParams.value = {
-      type: item.type,
+      type: item.type as GenerateParams['type'],
       title: item.title,
       content: item.content,
       images: item.images || [],
