@@ -23,7 +23,7 @@ export interface LayoutItem {
 }
 
 export interface GenerateParams {
-  type: 'poster' | 'article' | 'brief'
+  type: 'poster' | 'article' | 'brief' | 'expense'
   title: string
   content: string
   color_theme: 'government' | 'china-red' | 'ink-green' | 'warm-orange'
@@ -58,6 +58,30 @@ export const useGenerateStore = defineStore('generate', () => {
   const reasoning = ref('')
   const isAllDone = ref(false)
 
+  // Expense result state
+  const expenseResult = ref<any>(null)
+  const setExpenseResult = (result: any) => {
+    expenseResult.value = result
+  }
+  const clearExpenseResult = () => {
+    expenseResult.value = null
+  }
+
+  // Expense PDF preview URL
+  const previewPdfUrl = ref<string | null>(null)
+  const setPreviewPdfUrl = (url: string | null) => {
+    if (previewPdfUrl.value) {
+      URL.revokeObjectURL(previewPdfUrl.value)
+    }
+    previewPdfUrl.value = url
+  }
+  const clearPreviewPdfUrl = () => {
+    if (previewPdfUrl.value) {
+      URL.revokeObjectURL(previewPdfUrl.value)
+    }
+    previewPdfUrl.value = null
+  }
+
   const startLayoutAnalysis = async (params: GenerateParams) => {
     isGenerating.value = true
     error.value = null
@@ -80,6 +104,7 @@ export const useGenerateStore = defineStore('generate', () => {
         content: params.content,
         image_count: params.images.length,
         image_sizes: imageSizes,
+        images: params.images,
       })
 
       layout.value = response.data.layout || []
@@ -124,6 +149,8 @@ export const useGenerateStore = defineStore('generate', () => {
     layout.value = []
     reasoning.value = ''
     isAllDone.value = false
+    clearExpenseResult()
+    clearPreviewPdfUrl()
   }
 
   const loadFromHistory = (item: HistoryItem) => {
@@ -150,5 +177,11 @@ export const useGenerateStore = defineStore('generate', () => {
     startLayoutAnalysis,
     reset,
     loadFromHistory,
+    expenseResult,
+    setExpenseResult,
+    clearExpenseResult,
+    previewPdfUrl,
+    setPreviewPdfUrl,
+    clearPreviewPdfUrl,
   }
 })

@@ -14,7 +14,7 @@
 |---|---|
 | 前端 | Vue 3 + Vite + TypeScript + TailwindCSS + Pinia |
 | 后端 | Python 3.11 + FastAPI + OpenAI SDK + ReportLab + Playwright |
-| AI 模型 | MiniMax-M2.7 |
+| AI 模型 | 智谱AI glm-4-air |
 
 ---
 
@@ -82,7 +82,7 @@ pip install -r requirements.txt
 
 # 配置环境变量
 cp .env.example .env
-# 编辑 .env 文件，填入自己的 MINIMAX_API_KEY
+# 编辑 .env 文件，填入自己的 ZHIPU_API_KEY
 
 # 启动服务（后端 http://localhost:8000）
 py main.py
@@ -97,9 +97,9 @@ py -c "import uvicorn; uvicorn.run('main:app', host='0.0.0.0', port=8000, reload
 在后端目录创建 `backend/.env` 文件，内容如下：
 
 ```env
-# MiniMax API Key（必填）
-# 申请地址：https://www.minimaxi.com/
-MINIMAX_API_KEY=你的MiniMax_API密钥
+# 智谱AI API Key（必填）
+# 申请地址：https://open.bigmodel.cn/
+ZHIPU_API_KEY=你的智谱API密钥
 ```
 
 **重要**：`.env` 文件不要提交到 Git，已在 `.gitignore` 中忽略。
@@ -311,7 +311,7 @@ sudo systemctl start ai-poster-backend
 | fastapi | 最新 | Web 框架 |
 | uvicorn | 最新 | ASGI 服务 |
 | python-dotenv | 最新 | 环境变量读取 |
-| openai | 最新 | MiniMax API 调用 |
+| openai | 最新 | 智谱AI API 调用 |
 | python-docx | 最新 | Word 文档生成 |
 | reportlab | 最新 | PDF 文档生成 |
 | playwright | 最新 | HTML 转图片截图 |
@@ -331,7 +331,7 @@ sudo systemctl start ai-poster-backend
 
 ### Q2：AI 生成报 "token plan not support model"？
 
-检查 `.env` 中 `MINIMAX_API_KEY` 是否正确，模型名称应为 `MiniMax-M2.7`。如果密钥不支持此模型，可尝试在 `backend/routers/generate.py` 中更换为 `MiniMax-M2.5` 等支持的模型。
+检查 `.env` 中 `ZHIPU_API_KEY` 是否正确，模型名称应为 `glm-4-air`。如果密钥不支持此模型，可尝试在 `backend/routers/generate.py` 中更换为 `glm-3-turbo` 等支持的模型。
 
 ### Q3：JSON 解析失败？
 

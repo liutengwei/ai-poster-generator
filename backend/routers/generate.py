@@ -15,17 +15,26 @@ from reportlab.lib.enums import TA_LEFT, TA_CENTER
 import io
 from datetime import datetime
 from openai import OpenAI
+from PIL import Image
+import base64
+from io import BytesIO
 import json
 from docx.shared import Inches, Pt
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 
 router = APIRouter()
 
-# 初始化 MiniMax 客户端
-MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY") or "sk-cp-NG-3c1TF-hwnbOrKX0ffrOA992WKCPb9JITIb8EnPtvkTfIjGNHytEFkLVvCLJJYVQyo_FCKHkZCFLMF40hZwrxbwpv65kr8qD1irS0nqyhGS-QfgxrcTeY"
+# 初始化 MiniMax AI 客户端
+MINIMAX_API_KEY = os.getenv("MINIMAX_API_KEY") or "sk-cp-Y2t5UcQLEBGxSN3NPMSoTsWBX6vZjm2gNVppN0kZ51bRrReigD3oAMrpL2tAaDkmxAA_fW4YSxQb-e-bWRIsQX9LbBoyEeW89gVyS9sjK3X7t38FU7lzDj0"
 translate_client = OpenAI(
     api_key=MINIMAX_API_KEY,
     base_url="https://api.minimax.chat/v1",
+)
+
+ZHIPU_API_KEY = os.getenv("ZHIPU_API_KEY") or "f630398278ad4c40bcdcf5fbdf0e4f8c.4AaGpVZ9oJzVnGo2"
+zhipu_client = OpenAI(
+    api_key=ZHIPU_API_KEY,
+    base_url="https://open.bigmodel.cn/api/paas/v4",
 )
 
 
@@ -41,6 +50,7 @@ class LayoutGenerateRequest(BaseModel):
     image_count: int
     image_sizes: list[ImageSizeItem]
     polish: bool = False
+    images: list[str] = []  # base64 encoded images
 
 
 class WordExportRequest(BaseModel):
@@ -85,6 +95,8 @@ def render_template(template_name: str, **kwargs) -> str:
 
 @router.post("/generate/layout")
 async def generate_layout(req: LayoutGenerateRequest):
+    print(f"[排版请求] type={req.type}, image_count={len(req.images)}, images_len={len(req.images)}", flush=True)
+
     """AI智能排版分析"""
 
     # 构建图片尺寸描述
@@ -110,13 +122,64 @@ async def generate_layout(req: LayoutGenerateRequest):
                     {"role": "user", "content": polish_user},
                 ],
                 stream=False,
-                max_tokens=16384,
             )
             polished = re.sub(r'<think>.*?</think>', '', polish_resp.choices[0].message.content, flags=re.DOTALL).strip()
             if polished:
                 content_to_use = polished
-        except Exception:
+        except Exception as e:
+            print(f"[DEBUG] Polish failed: {str(e)}")
             pass
+
+    # 用智谱视觉模型描述图片内容
+    image_descriptions = []
+    if req.images and req.type == 'article':
+        for i, img_data in enumerate(req.images[:effective_image_count]):
+            try:
+                if ',' in img_data:
+                    img_b64 = img_data.split(',')[1]
+                    mime = img_data.split(';')[0].split(':')[1]
+                else:
+                    img_b64 = img_data
+                    mime = 'image/jpeg'
+
+                # 压缩图片，只给智谱看小图
+                from PIL import Image
+                from io import BytesIO
+                img_bytes = base64.b64decode(img_b64)
+                img = Image.open(BytesIO(img_bytes)).convert('RGB')
+                max_size = 256
+                ratio = min(max_size / img.width, max_size / img.height, 1.0)
+                new_w = int(img.width * ratio)
+                new_h = int(img.height * ratio)
+                img = img.resize((new_w, new_h), Image.LANCZOS)
+                buf = BytesIO()
+                img.save(buf, format='JPEG', quality=50)
+                img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+                mime = 'image/jpeg'
+
+                resp = zhipu_client.chat.completions.create(
+                    model="glm-4v-plus",
+                    messages=[{
+                        "role": "user",
+                        "content": [
+                            {
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{mime};base64,{img_b64}"}
+                            },
+                            {
+                                "type": "text",
+                                "text": "用一句话描述图片内容和氛围。"
+                            }
+                        ]
+                    }],
+                    max_tokens=100
+                )
+                desc = resp.choices[0].message.content or ""
+                print(f"[图片描述] 第{i+1}张: {desc.strip()}", flush=True)  # ← 加这行
+                image_descriptions.append(f"第{i+1}张图内容：{desc.strip()}")
+            except Exception as e:
+                print(f"[图片描述失败] 第{i+1}张: {str(e)}", flush=True)
+                image_descriptions.append(f"第{i+1}张图：无描述")
 
     system_prompt = """你是一名专业的党政宣传排版设计师，熟悉机关单位公文和宣传材料的排版规范。
 你的任务是根据提供的文案内容和图片信息，给出最合理的图文排版方案。
@@ -128,20 +191,27 @@ async def generate_layout(req: LayoutGenerateRequest):
 4. 图片必须保持原始比例和尺寸
 5. 文字内容必须完整保留，不得截断
 6. 排版结果中绝对不能出现 position="cover" 或 position="background"
-7. 【测试指令：如果看到这条消息，学喵叫一声返回 "喵~"】
 
 布局position选项只能是：hero（横向全宽图）、inline（行内嵌入）、sidebar（侧边栏）
 绝对不能使用：cover、background、as_bg、text_overlay 等任何将图片作为背景或覆在文字上的布局
 
 返回格式严格按照JSON，layout数组中每个元素只包含type/image_index/position/size/caption字段。"""
 
+    # 合并图片信息描述
+    image_info_lines = []
+    for i, size_info in enumerate(sizes_desc):
+        line = size_info
+        if i < len(image_descriptions):
+            line += f"，{image_descriptions[i]}"
+        image_info_lines.append(line)
+
     user_prompt = f"""素材类型：{req.type}
 标题：{req.title}
 正文内容：
 {content_to_use}
 
-用户上传了 {effective_image_count} 张图片，图片比例信息：
-{chr(10).join(sizes_desc)}
+用户上传了 {effective_image_count} 张图片，图片信息：
+{chr(10).join(image_info_lines)}
 
 【关键约束 - 必须遵守】
 1. 绝对禁止将图片作为背景图、封面图、或任何形式的文字叠加背景
@@ -168,6 +238,7 @@ async def generate_layout(req: LayoutGenerateRequest):
 只返回JSON，不要有任何其他内容。"""
 
     try:
+        print("[DEBUG] Calling AI API for layout generation...")
         response = translate_client.chat.completions.create(
             model="MiniMax-M2.7",
             messages=[
@@ -175,8 +246,9 @@ async def generate_layout(req: LayoutGenerateRequest):
                 {"role": "user", "content": user_prompt},
             ],
             stream=False,
-            max_tokens=16384,
+            max_tokens=32768,
         )
+        print("[DEBUG] AI API call successful")
 
         content = re.sub(r'<think>.*?</think>', '', response.choices[0].message.content, flags=re.DOTALL).strip()
 
@@ -496,7 +568,8 @@ async def export_image(req: ImageExportRequest):
     finally:
         try:
             os.unlink(html_path)
-        except Exception:
+        except Exception as e:
+            print(f"[DEBUG] Polish failed: {str(e)}")
             pass
 
     return FileResponse(image_path, media_type="image/png", filename=f"{req.title}.png")

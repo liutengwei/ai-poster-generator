@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import Create from '@/views/Create.vue'
 import History from '@/views/History.vue'
+import ExpenseCheck from '@/views/ExpenseCheck.vue'
 
 const router = createRouter({
   history: createWebHistory(),
@@ -14,6 +15,11 @@ const router = createRouter({
       path: '/history',
       name: 'history',
       component: History,
+    },
+    {
+      path: '/expense',
+      name: 'expense',
+      component: ExpenseCheck,
     },
   ],
 })

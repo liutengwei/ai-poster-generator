@@ -81,7 +81,7 @@ const renderContent = computed(() => {
 <template>
   <div class="preview-panel">
     <!-- Empty State -->
-    <div v-if="!store.isGenerating && !store.isAllDone" class="empty-state">
+    <div v-if="!store.isGenerating && !store.isAllDone  && store.currentParams.type !== 'expense'" class="empty-state">
       <svg class="empty-illustration" viewBox="0 0 200 200" fill="none">
         <circle cx="100" cy="100" r="80" stroke="rgba(99, 102, 241, 0.12)" stroke-width="1" stroke-dasharray="4 4"/>
         <circle cx="100" cy="100" r="60" stroke="rgba(99, 102, 241, 0.15)" stroke-width="1"/>
@@ -213,6 +213,36 @@ const renderContent = computed(() => {
           <div class="footer-line"></div>
           <span class="footer-text">第 {{ new Date().getMonth() + 1 }} 期 | {{ today }}</span>
         </div>
+      </div>
+    </div>
+
+    <!-- Expense Preview -->
+    <div v-else-if="store.currentParams.type === 'expense'" class="expense-preview">
+      <div v-if="!store.previewPdfUrl" class="empty-state" style="padding-top: 80px">
+        <svg class="empty-illustration" viewBox="0 0 200 200" fill="none">
+          <circle cx="100" cy="100" r="80" stroke="rgba(99, 102, 241, 0.12)" stroke-width="1" stroke-dasharray="4 4"/>
+          <circle cx="100" cy="100" r="60" stroke="rgba(99, 102, 241, 0.15)" stroke-width="1"/>
+          <g transform="translate(70, 65)">
+            <rect x="10" y="10" width="50" height="65" rx="6" stroke="#6366f1" stroke-width="2" fill="none"/>
+            <path d="M22 30h26M22 42h20M22 54h16" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round"/>
+          </g>
+        </svg>
+        <h3 class="empty-title"><span class="gradient-text">上传凭证并审核</span></h3>
+        <p class="empty-desc">审核完成后将自动生成 PDF 预览</p>
+      </div>
+
+      <!-- PDF 预览 -->
+      <div v-else class="pdf-preview-wrapper">
+        <div class="pdf-preview-header">
+          <span class="pdf-preview-title">合并预览</span>
+          <div class="pdf-summary" v-if="store.expenseResult">
+            <span class="pdf-passed">✅ {{ store.expenseResult.summary.passed }} 张合格</span>
+            <span class="pdf-amount" v-if="store.expenseResult.summary.total_amount">
+              ¥{{ store.expenseResult.summary.total_amount }}
+            </span>
+          </div>
+        </div>
+        <iframe :src="store.previewPdfUrl" class="pdf-frame"></iframe>
       </div>
     </div>
 
@@ -658,5 +688,61 @@ const renderContent = computed(() => {
 @keyframes slideUp {
   from { opacity: 0; transform: translate(-50%, 24px); }
   to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Expense Preview */
+.expense-preview {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  animation: fadeInUp 0.4s ease-out;
+}
+
+.pdf-preview-wrapper {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  gap: 12px;
+}
+
+.pdf-preview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.pdf-preview-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #f3f4f6;
+}
+
+.pdf-summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pdf-passed {
+  font-size: 13px;
+  color: #22c55e;
+}
+
+.pdf-amount {
+  font-size: 13px;
+  color: #f59e0b;
+  font-weight: 600;
+}
+
+.pdf-frame {
+  width: 100%;
+  flex: 1;
+  border: none;
+  border-radius: 12px;
+  background: #f5f5f5;
+  min-height: 0;
 }
 </style>
